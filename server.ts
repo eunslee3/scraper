@@ -5,8 +5,8 @@ const app = express()
 
 app.get('/scrape', async (req, res) => {
   try {
-    await scrapeIndieHackers()
-    res.status(200).json({ message: 'Scraping complete' })
+    const products = await scrapeIndieHackers()
+    res.status(200).json({ message: 'Scraping complete', products })
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Scraping failed' })

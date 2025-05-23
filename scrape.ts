@@ -9,7 +9,17 @@ interface Product {
   tagline: string;
   mrr: string;
   link: string;
-  mrrTier?: string;
+  mrr_tier?: string;
+  mrr_value?: number | null;
+}
+
+function parseMRR(mrrString: string): number | null {
+  if (!mrrString) return null;
+  const match = mrrString.match(/\$([\d,]+)/);
+  if (!match) return null;
+  const cleaned = match[1].replace(/,/g, '');
+  const parsed = parseInt(cleaned, 10);
+  return isNaN(parsed) ? null : parsed;
 }
 
 export default async function scrapeIndieHackers() {
@@ -36,8 +46,8 @@ export default async function scrapeIndieHackers() {
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
       '--disable-accelerated-2d-canvas',
-      '--disable-gpu'
-    ]
+      '--disable-gpu',
+    ],
   });
 
   const page = await browser.newPage();
@@ -59,7 +69,7 @@ export default async function scrapeIndieHackers() {
 
   await Promise.all([
     page.click('button[type="submit"]'),
-    page.waitForFunction(() => location.pathname !== '/sign-in', { timeout: 10000 })
+    page.waitForFunction(() => location.pathname !== '/sign-in', { timeout: 10000 }),
   ]);
 
   console.log('✅ Logged in');
@@ -70,7 +80,7 @@ export default async function scrapeIndieHackers() {
 
     while (attempts < 10) {
       await page.evaluate('window.scrollTo(0, document.body.scrollHeight)');
-      await new Promise(r => setTimeout(r, 1500));
+      await new Promise((r) => setTimeout(r, 1500));
       const newHeight = await page.evaluate('document.body.scrollHeight');
       if (newHeight === previousHeight) break;
       previousHeight = newHeight;
@@ -93,7 +103,7 @@ export default async function scrapeIndieHackers() {
 
     const products = await page.evaluate(() => {
       const cards = document.querySelectorAll('.product-card.ember-view');
-      return Array.from(cards).map(card => {
+      return Array.from(cards).map((card) => {
         const title = card.querySelector('.product-card__name')?.textContent?.trim() || '';
         const tagline = card.querySelector('.product-card__tagline')?.textContent?.trim() || '';
         const mrr = card.querySelector('.product-card__revenue-number')?.textContent?.trim() || '';
@@ -102,12 +112,15 @@ export default async function scrapeIndieHackers() {
       });
     });
 
-    // Attach MRR tier to each product
-    products.forEach(p => p.mrrTier = tier.label);
-    allProducts.push(...products);
+    // Attach MRR tier and mrr_value
+    products.forEach((p) => {
+      p.mrr_tier = tier.label;
+      p.mrr_value = parseMRR(p.mrr);
+    });
 
+    allProducts.push(...products);
     console.log(`✅ Scraped ${products.length} products from ${tier.label} tier`);
-    await new Promise(r => setTimeout(r, 1000));
+    await new Promise((r) => setTimeout(r, 1000));
   }
 
   // Save to file
@@ -115,8 +128,11 @@ export default async function scrapeIndieHackers() {
   console.log(`💾 Saved ${allProducts.length} total products to ideas.json`);
 
   await browser.close();
+  return allProducts;
 }
 
-scrapeIndieHackers().catch(err => {
-  console.error('❌ Scraper error:', err);
-});
+if (require.main === module) {
+  scrapeIndieHackers().catch((err) => {
+    console.error('❌ Scraper error:', err);
+  });
+}
